@@ -1,112 +1,68 @@
-# GrainGuard — Adaptive Grain Preservation Platform
+# GrainGuard Edge Node V1
 
-**Research prototype V1.0 | GitHub Pages-ready | Single-file front end + ESP32 firmware + optional Supabase**
+Telemetry-only ESP32 starter firmware. It does not control a fan, heater, auger or other actuator.
 
-GrainGuard explores a crop-aware grain-storage monitoring and decision-support system. It captures grain-mass temperature, ambient temperature/relative humidity and protected headspace CO2 trends, records crop and batch context, and provides conservative storage-condition indicators. A ventilation planner can evaluate a crop-specific equilibrium-moisture-content (EMC) table only when one is supplied and reviewed by a qualified specialist.
+## Tested design target
 
-> **Important:** GrainGuard V1 is not a food-safety certification system, mycotoxin detector or autonomous grain aeration controller. It does not determine whether grain is safe to eat, sell or store. No fan/actuator output is implemented. The website's demo readings are synthetic and labelled.
+- ESP32 DevKit V1 / ESP32-WROOM-32
+- SHT31 ambient temperature and relative humidity breakout
+- SCD40 CO2 sensor in a protected, sampled headspace chamber
+- DS18B20 temperature probe placed in a representative grain-mass location
+- USB Serial JSON Lines at 115200 baud
+- Nordic UART Service (NUS) BLE notifications
 
-## Contents
+The sketch has been prepared against the listed Arduino libraries, but must be compiled against the exact installed board core and library versions before flashing. No physical board or sensor has been tested as part of this source-package build.
 
-```text
-.
-├── index.html
-├── README.md
-├── LICENSE
-├── SECURITY.md
-├── CONTRIBUTING.md
-├── .nojekyll
-├── .github/workflows/pages.yml
-├── assets/
-│   └── grainguard-system.svg
-├── hardware/
-│   ├── GrainGuard_ESP32.ino
-│   ├── README.md
-│   ├── PROTOCOL.md
-│   └── BOM.md
-├── supabase/
-│   ├── schema.sql
-│   └── README.md
-├── docs/
-│   ├── 48-HOUR-HACKATHON-PLAN.md
-│   ├── ARCHITECTURE.md
-│   ├── INSTITUTIONAL-DEPLOYMENT.md
-│   ├── OPERATOR-GUIDE.md
-│   ├── ORIGINALITY-SCREEN.md
-│   ├── RESEARCH-AND-LIMITATIONS.md
-│   └── VALIDATION-PROTOCOL.md
-└── .github/workflows/pages.yml
-```
+## Libraries
 
-## Website features
+Install using Arduino Library Manager:
 
-- Dashboard and batch inventory
-- USB Serial and BLE telemetry interfaces
-- Separate physical, manual, laboratory and demo data labels
-- ESP32 device status and JSONL telemetry parser
-- Storage-condition indicators with visible evidence
-- Crop guide references (historic FAO contextual figures, not regulatory limits)
-- Crop-specific EMC table import and bilinear interpolation within the validated table domain; no extrapolation
-- Ventilation decision support that refuses to advise with missing inputs; advisory only
-- Open-Meteo geocoding and current weather integration
-- Local-first storage, CSV and JSON export, print report
-- Optional Supabase Auth and RLS-protected cloud tables
-- Validation register, research dossier, potential partner pathways and limitations
-- GitHub Pages Actions workflow
+1. Adafruit SHT31 Library
+2. Sensirion I2C SCD4x (current `SensirionI2cScd4x` API) and its Sensirion Core dependency
+3. OneWire
+4. DallasTemperature
+5. ArduinoJson (version 7 compatible)
+6. NimBLE-Arduino (2.x API for ESP32)
 
-## Publish on GitHub Pages
+Select an ESP32 Dev Module board and the correct serial port. Build and inspect compile warnings before flashing.
 
-1. Download/extract the release ZIP.
-2. Upload the **contents** of the `grainguard-github` folder to the root of a GitHub repository (keep all folders).
-3. Open repository **Settings → Pages**.
-4. Set **Build and deployment → Source** to **GitHub Actions**.
-5. Push to the `main` branch. The included workflow deploys `index.html` and the static files.
+## Wiring reference
 
-Hardware APIs such as Web Serial and Web Bluetooth generally require a secure context (HTTPS) and supported browser. USB Serial works best on Chromium desktop. Web Bluetooth is supported in compatible Chromium browsers, including many Android Chrome versions, but not all browsers/devices.
+| Module | ESP32 pin | Notes |
+|---|---:|---|
+| I2C SDA (SHT31 + SCD40) | GPIO 21 | Shared I2C bus; confirm addresses |
+| I2C SCL (SHT31 + SCD40) | GPIO 22 | Shared I2C bus |
+| DS18B20 data | GPIO 4 | 4.7 kΩ pull-up to 3.3 V is normally required |
+| Common ground | GND | Common reference |
+| Sensor supply | 3V3 / breakout VIN as specified | Check the exact module documentation first |
 
-## Hardware quick start
+SHT31 commonly uses address 0x44; SCD40 uses 0x62. Confirm with an I2C scanner. Some breakout boards accept 5 V at VIN while bare sensor devices do not. ESP32 GPIOs are not 5 V tolerant. Never connect an unverified 5 V output to an ESP32 pin.
 
-See `hardware/README.md` and `hardware/BOM.md`. The target is ESP32 DevKit V1 with SHT31 ambient T/RH, SCD40 headspace CO2 and DS18B20 grain temperature. The sketch emits newline-delimited JSON over USB Serial and Nordic UART Service BLE.
+## Grain moisture
 
-V1 leaves `grain_moisture_pct` null by design. Use a crop-calibrated grain meter or laboratory method, then enter the result in the app. Do not treat generic soil probes or ambient RH as grain moisture.
+V1 intentionally emits `grain_moisture_pct: null`. Do not connect a generic soil-moisture probe and label its output as grain moisture. Use a crop-calibrated grain moisture meter or laboratory method and enter its value in the app with method, crop, moisture basis, sample ID and meter/calibration details. A future hardware integration requires a documented interface and crop-specific calibration.
 
-## Optional Supabase integration
+## Placement
 
-Run `supabase/schema.sql` in the Supabase SQL Editor. Then open **Settings & integrations** in the website and enter your project URL and anon/publishable key. Create or sign in with a Supabase Auth account.
+- Place SHT31 in a shaded, ventilated enclosure measuring store air, away from direct sunlight, rain and fan discharge.
+- Place DS18B20 at a documented depth and location within the grain mass. A single probe cannot represent a large bin; use several locations for a serious pilot.
+- Place SCD40 in a protected headspace sampling enclosure designed to avoid dust and condensation. Record airflow and sampling configuration. It is a trend sensor, not a mycotoxin detector.
+- Keep electronics, exposed connectors and mains equipment physically separated from grain dust and operators.
 
-Never embed a Supabase `service_role` or secret key in this static website. RLS must remain enabled. The supplied policies restrict records to the signed-in user; multi-organisation deployments need additional membership/role controls and a privacy review.
+## Safety
 
-## Weather integration
+No fan relay or actuator output exists in this version. Do not add automatic aeration based on ambient RH alone. Any later actuator design requires a crop-specific equilibrium-moisture model, independent fail-safe review, electrical protection, operator override and controlled validation.
 
-Weather location lookup and current conditions use Open-Meteo public endpoints. Forecast data is contextual and must not be used as a substitute for on-site ambient sensors or validated EMC input.
+## Upstream API references
 
-## Research position
+- Sensirion SCD4x Arduino library and current example: https://github.com/Sensirion/arduino-i2c-scd4x
+- Adafruit SHT31 library: https://github.com/adafruit/Adafruit_SHT31
+- NimBLE-Arduino API: https://h2zero.github.io/NimBLE-Arduino/
+- DallasTemperature library: https://github.com/milesburton/Arduino-Temperature-Control-Library
 
-Grain monitoring, grain moisture/temperature sensing, storage alerts and automated aeration already exist commercially. Bin-Sense is one example: https://www.binsense.com/products/. GrainGuard does not claim those capabilities as novel. The technical hypothesis worth testing is a conservative, crop-specific EMC-aware intervention gate combined with condition trends, explicit uncertainty and refusal to issue a recommendation when critical information is missing.
+## V1.1 physical build documents
 
-See `docs/RESEARCH-AND-LIMITATIONS.md` and `docs/VALIDATION-PROTOCOL.md` before using outputs externally.
-
-## External references
-
-- FAO post-harvest losses: https://www.fao.org/4/x5065e/x5065E05.htm
-- FAO storage fundamentals: https://www.fao.org/4/x5065e/x5065E04.htm
-- FAO controlled ventilation: https://www.fao.org/4/x5065e/x5065E0a.htm
-- FAO fungi and mycotoxins: https://www.fao.org/4/x5065e/x5065E0c.htm
-- Bin-Sense existing product benchmark: https://www.binsense.com/products/
-- Open-Meteo API: https://open-meteo.com/en/docs
-- Supabase JS and RLS: https://supabase.com/docs/reference/javascript/installing
-
-## Development status
-
-This package is a source release prepared for prototype development. The HTML/JavaScript can be syntax-checked and deployed statically, but the ESP32 firmware must be compiled against installed library versions and tested on actual hardware. Sensor calibration, field trials, EMC table validation, institutional approval, food-safety testing and patent review remain outstanding.
-
-## License
-
-MIT for the original source code in this repository. Third-party libraries, sensor modules, standards and cited materials retain their own licenses/terms. The MIT license is not a certification or warranty of the physical instrument.
-
-## Physical build and validation
-
-- [Assembly guide](hardware/ASSEMBLY-GUIDE-V1.1.md)
-- [Bill of materials and checklist](hardware/BOM-AND-TEST-CHECKLIST.md)
-- [Field pilot protocol](docs/FIELD-PILOT-PROTOCOL.md)
-- [Known limitations](docs/KNOWN-LIMITATIONS-V1.1.md)
+- `ASSEMBLY-GUIDE-V1.1.md` — wiring, safe assembly and acceptance tests
+- `BOM-AND-TEST-CHECKLIST.md` — bill of materials and commissioning checklist
+- `../docs/FIELD-PILOT-PROTOCOL.md` — first controlled field pilot
+- `../docs/KNOWN-LIMITATIONS-V1.1.md` — limitations and safety boundaries
